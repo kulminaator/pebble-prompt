@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Minimal UI</title>
+    <style>
+        :root {
+            --bg: #121212;
+            --panel-bg: #1e1e1e;
+            --text: #e0e0e0;
+            --border: #333;
+            --accent: #4caf50;
+            --user-msg-bg: #2a2a3a;
+            --assistant-msg-bg: #1e2e1e;
+            --thinking-bg: #2e2e1e;
+            --thinking-border: #665500;
+            --error-bg: #2e1e1e;
+            --error-border: #662222;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: monospace;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        details {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        summary {
+            cursor: pointer;
+            font-weight: bold;
+            outline: none;
+        }
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        label {
+            display: flex;
+            flex-direction: column;
+            font-size: 0.85rem;
+        }
+        input {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 4px;
+            margin-top: 4px;
+            font-family: monospace;
+        }
+        #chatArea {
+            flex: 1;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .chat-msg {
+            padding: 8px 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.5;
+            position: relative;
+        }
+        .chat-msg.user {
+            background: var(--user-msg-bg);
+            border-left: 3px solid #5566aa;
+        }
+        .chat-msg.assistant {
+            background: var(--assistant-msg-bg);
+            border-left: 3px solid var(--accent);
+        }
+        .chat-msg.thinking {
+            background: var(--thinking-bg);
+            border-left: 3px solid var(--thinking-border);
+        }
+        .chat-msg.error {
+            background: var(--error-bg);
+            border-left: 3px solid var(--error-border);
+        }
+        .chat-msg .label {
+            font-weight: bold;
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-bottom: 4px;
+            display: block;
+        }
+        .thinking-block {
+            background: var(--thinking-bg);
+            border: 1px solid var(--thinking-border);
+            border-radius: 4px;
+            margin-bottom: 6px;
+        }
+        .thinking-block summary {
+            font-size: 0.85rem;
+            padding: 6px 10px;
+            color: #bb9900;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .thinking-block .chat-msg.thinking {
+            margin: 0;
+            border-left: none;
+            background: transparent;
+            padding: 0 10px 8px;
+        }
+        .input-area {
+            display: flex;
+            flex-direction: column;
+        }
+        .resize-handle {
+            height: 6px;
+            cursor: ns-resize;
+            background: transparent;
+            flex-shrink: 0;
+        }
+        .resize-handle:hover,
+        .resize-handle.active {
+            background: var(--accent);
+            opacity: 0.4;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+        #input {
+            flex: 1;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px;
+            font-family: monospace;
+            font-size: inherit;
+            line-height: 1.5;
+            outline: none;
+            min-height: 0;
+            resize: none;
+        }
+        button {
+            background: var(--accent);
+            color: black;
+            border: none;
+            padding: 0 20px;
+            cursor: pointer;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        /* Speed indicator badge — non-selectable, non-interfering */
+        .speed-badge {
+            position: absolute;
+            right: 6px;
+            top: 6px;
+            font-size: 0.7rem;
+            color: #888;
+            background: rgba(0,0,0,0.5);
+            padding: 2px 6px;
+            border-radius: 3px;
+            user-select: none;
+            pointer-events: none;
+            white-space: nowrap;
+            line-height: 1.3;
+        }
+    </style>
+</head>
+<body>
+
+    <details>
+        <summary>⚙️ Configuration</summary>
+        <div class="config-grid">
+            <label>
+                API URL
+                <input id="apiUrl" type="text" value="http://localhost:8000/v1/chat/completions">
+            </label>
+            <label>
+                Model Name
+                <input id="modelName" type="text" value="facebook/opt-125m">
+            </label>
+            <label>
+                Temperature
+                <input id="temp" type="number" value="0.7" step="0.1" min="0" max="2">
+            </label>
+            <label>
+                Max Tokens
+                <input id="maxTokens" type="number" value="32768">
+            </label>
+            <label>
+                API Key
+                <input id="apiKey" type="password" value="not-needed" placeholder="Bearer token (optional)">
+            </label>
+        </div>
+    </details>
+
+    <div id="chatArea"></div>
+
+    <div class="input-area">
+        <div class="resize-handle" id="resizeHandle"></div>
+        <div class="input-row">
+            <textarea id="input" rows="5" placeholder="Ask a question... (Enter to send, Shift+Enter for new line)" autofocus></textarea>
+            <button id="sendBtn">Send</button>
+        </div>
+    </div>
+
+    <script>
+    /* ================================================================
+       Constants
+       ================================================================ */
+    const CONFIG_KEY    = 'llm-ui-config';
+    const BOTTOM_THRESHOLD = 40;       // px from bottom to count as "scrolled to bottom"
+    const SCROLL_PAUSE_MS  = 5000;     // ms to wait before resuming auto-scroll
+    const PROMPT_TICK_MS   = 200;      // ms between prompt-processing badge updates
+    const DOT_INTERVAL_MS  = 333;      // ms between dot animation cycles (max ~3/s)
+    const CHARS_PER_TOKEN  = 4;        // rough estimate for prompt token counting
+
+    /* ================================================================
+       Lightweight AES-GCM encryption for the stored API key
+       Key is embedded in source — protects against casual localStorage
+       inspection, not a determined adversary with source access.
+       
+       Our application is a light weight frontend app. It's best we can offer here for now.
+       If you wish you can alter the source to remove the password storage altogether.
+       ================================================================ */
+    const CRYPTO_SECRET = 'llm-ui-aes-gcm-key-2025';
+    let aesKey = null;                // cached CryptoKey
+
+    /** Derive an AES-GCM key from the embedded secret string. */
+    async function deriveKey() {
+        if (aesKey) return aesKey;
+        const enc = new TextEncoder();
+        const raw = await crypto.subtle.importKey('raw', enc.encode(CRYPTO_SECRET), 'PBKDF2', false, ['deriveKey']);
+        aesKey = await crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: enc.encode('llm-salt'), iterations: 100_000, hash: 'SHA-256' },
+            raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'],
+        );
+        return aesKey;
+    }
+
+    /** Encrypt plaintext → base64(nonce + ciphertext). Returns '' on error. */
+    async function encryptAes(text) {
+        try {
+            const nonce = crypto.getRandomValues(new Uint8Array(12));
+            const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, await deriveKey(), new TextEncoder().encode(text));
+            const combined = new Uint8Array(nonce.length + ct.byteLength);
+            combined.set(nonce); combined.set(new Uint8Array(ct), 12);
+            return btoa(String.fromCharCode(...combined));
+        } catch { return ''; }
+    }
+
+    /** Decrypt base64(nonce + ciphertext) → plaintext. Returns null on error. */
+    async function decryptAes(b64) {
+        try {
+            const combined = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            const nonce = combined.slice(0, 12);
+            const ct = combined.slice(12);
+            const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, await deriveKey(), ct);
+            return new TextDecoder().decode(pt);
+        } catch { return null; }
+    }
+
+    /* ================================================================
+       DOM references
+       ================================================================ */
+    const els = {
+        input:      document.getElementById('input'),
+        sendBtn:    document.getElementById('sendBtn'),
+        chatArea:   document.getElementById('chatArea'),
+        apiUrl:     document.getElementById('apiUrl'),
+        modelName:  document.getElementById('modelName'),
+        temp:       document.getElementById('temp'),
+        maxTokens:  document.getElementById('maxTokens'),
+        apiKey:     document.getElementById('apiKey'),
+    };
+
+    /* ================================================================
+       State
+       ================================================================ */
+    let isStreaming = false;
+    let thinkingStartOpen = false;   // sticky user preference for thinking block
+
+    /* ================================================================
+       Config persistence — reads/writes settings to localStorage
+       ================================================================ */
+
+    /** Read saved config from localStorage and populate input fields. */
+    async function loadConfig() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CONFIG_KEY));
+            if (!saved) return;
+            if (saved.apiUrl)    els.apiUrl.value    = saved.apiUrl;
+            if (saved.modelName) els.modelName.value = saved.modelName;
+            if (saved.temp)      els.temp.value      = saved.temp;
+            if (saved.maxTokens) els.maxTokens.value = saved.maxTokens;
+            const key = saved.apiKey ? await decryptAes(saved.apiKey) : null;
+            if (key) els.apiKey.value = key;
+        } catch { /* corrupted data — ignore */ }
+    }
+
+    /** Persist current config values to localStorage (API key encrypted). */
+    async function saveConfig() {
+        try {
+            const apiKey = els.apiKey.value;
+            localStorage.setItem(CONFIG_KEY, JSON.stringify({
+                apiUrl:    els.apiUrl.value,
+                modelName: els.modelName.value,
+                temp:      els.temp.value,
+                maxTokens: els.maxTokens.value,
+                apiKey:    apiKey ? await encryptAes(apiKey) : '',
+            }));
+        } catch { /* quota exceeded or private mode — ignore */ }
+    }
+
+    /** Attach input listeners to all config fields. */
+    function initConfig() {
+        [els.apiUrl, els.modelName, els.temp, els.maxTokens, els.apiKey]
+            .forEach(el => el.addEventListener('input', saveConfig));
+        loadConfig();
+    }
+
+    /* ================================================================
+       Auto-scroll — pauses when user scrolls up, resumes after timeout
+       ================================================================ */
+    let autoScrollEnabled = true;
+    let autoScrollTimer = null;
+
+    /** Scroll chat to bottom if auto-scroll is enabled. */
+    function scrollToBottom() {
+        if (!autoScrollEnabled) return;
+        els.chatArea.scrollTop = els.chatArea.scrollHeight;
+    }
+
+    /** Pause auto-scroll for SCROLL_PAUSE_MS, then resume. */
+    function pauseAutoScroll() {
+        autoScrollEnabled = false;
+        if (autoScrollTimer) clearTimeout(autoScrollTimer);
+        autoScrollTimer = setTimeout(() => { autoScrollEnabled = true; }, SCROLL_PAUSE_MS);
+    }
+
+    /** Immediately resume auto-scroll and cancel any pending pause timer. */
+    function resumeAutoScroll() {
+        autoScrollEnabled = true;
+        if (autoScrollTimer) { clearTimeout(autoScrollTimer); autoScrollTimer = null; }
+    }
+
+    /** Check if element is scrolled to within BOTTOM_THRESHOLD of its bottom. */
+    function isAtBottom(el) {
+        return el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_THRESHOLD;
+    }
+
+    /** Attach scroll listener to chat area. */
+    function initAutoScroll() {
+        els.chatArea.addEventListener('scroll', () => {
+            if (isAtBottom(els.chatArea)) resumeAutoScroll();
+            else if (isStreaming) pauseAutoScroll();
+        });
+    }
+
+    /* ================================================================
+       Speed tracking helpers
+       ================================================================ */
+
+    /** Format seconds into a human-readable duration string. */
+    function fmtTime(sec) {
+        if (sec < 1) return `${(sec * 1000).toFixed(0)}ms`;
+        if (sec < 60) return `${sec.toFixed(1)}s`;
+        const m = Math.floor(sec / 60);
+        return `${m}m ${(sec % 60).toFixed(0)}s`;
+    }
+
+    /** Create a speed-badge element with optional initial text. */
+    function makeBadge(initial = '...') {
+        const el = document.createElement('span');
+        el.className = 'speed-badge';
+        el.textContent = initial;
+        return el;
+    }
+
+    /** Update a speed badge with live tokens/sec and elapsed time. */
+    function tickBadge(badge, tokens, startMs) {
+        const elapsed = (Date.now() - startMs) / 1000;
+        const speed = elapsed > 0 ? tokens / elapsed : 0;
+        badge.textContent = `${speed.toFixed(1)} tok/s  ${fmtTime(elapsed)}`;
+    }
+
+    /** Finalize a speed badge using a frozen end time. */
+    function freezeBadge(badge, tokens, startMs, endMs) {
+        const elapsed = (endMs - startMs) / 1000;
+        const speed = elapsed > 0 ? tokens / elapsed : 0;
+        badge.textContent = `${speed.toFixed(1)} tok/s  ${fmtTime(elapsed)}`;
+    }
+
+    /** Estimate token count from raw text length. */
+    function estTokens(text) {
+        return Math.max(1, Math.ceil(text.length / CHARS_PER_TOKEN));
+    }
+
+    /* ================================================================
+       DOM builders
+       ================================================================ */
+
+    /** Create a chat message wrapper with a label. */
+    function msgEl(role, label) {
+        const div = document.createElement('div');
+        div.className = `chat-msg ${role}`;
+        const lbl = document.createElement('span');
+        lbl.className = 'label';
+        lbl.textContent = label;
+        div.appendChild(lbl);
+        return div;
+    }
+
+    /** Build and append a user message with speed badge. Returns { label, badge }. */
+    function buildUserMsg(prompt) {
+        const lines = prompt.split('\n');
+        const display = lines.slice(0, 5).join('\n')
+            + (lines.length > 5 ? '\n...truncated...' : '');
+        const el = document.createElement('div');
+        el.className = 'chat-msg user';
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = 'You';
+        el.appendChild(label);
+        el.appendChild(document.createTextNode(display));
+        const badge = makeBadge('waiting...');
+        el.appendChild(badge);
+        els.chatArea.appendChild(el);
+        scrollToBottom();
+        return { label, badge };
+    }
+
+    /** Build and append an error message. */
+    function buildErrorMsg(text) {
+        const el = msgEl('error', 'Error');
+        el.appendChild(document.createTextNode(text));
+        els.chatArea.appendChild(el);
+        scrollToBottom();
+    }
+
+    /**
+     * Build the thinking block DOM.
+     * @returns {{ details, summary, label, badge, content }}
+     */
+    function buildThinkingBlock() {
+        const details = document.createElement('details');
+        details.className = 'thinking-block';
+        details.open = thinkingStartOpen;
+
+        const summary = document.createElement('summary');
+        const label = document.createTextNode('💭 Thinking');
+        const badge = makeBadge('waiting...');
+        summary.appendChild(label);
+        summary.appendChild(badge);
+        details.appendChild(summary);
+
+        const msg = msgEl('thinking', 'Thinking');
+        const content = document.createTextNode('...');
+        msg.appendChild(content);
+        details.appendChild(msg);
+
+        els.chatArea.appendChild(details);
+        return { details, summary, label, badge, content };
+    }
+
+    /**
+     * Build the assistant response DOM.
+     * @returns {{ el, label, content, badge }}
+     */
+    function buildAssistantMsg() {
+        const el = document.createElement('div');
+        el.className = 'chat-msg assistant';
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = 'Assistant';
+        el.appendChild(label);
+        const content = document.createTextNode('');
+        el.appendChild(content);
+        const badge = makeBadge('waiting...');
+        el.appendChild(badge);
+        els.chatArea.appendChild(el);
+        return { el, label, content, badge };
+    }
+
+    /* ================================================================
+       SSE stream reader
+       ================================================================ */
+
+    /**
+     * Read and parse an SSE stream, calling `onChunk` for each parsed JSON
+     * object. Handles line buffering across read chunks.
+     */
+    async function readStream(reader, decoder, onChunk) {
+        let buffer = '';
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith('data: ')) continue;
+                const dataStr = trimmed.slice(6);
+                if (dataStr === '[DONE]') continue;
+                try { onChunk(JSON.parse(dataStr)); }
+                catch { /* skip malformed chunks */ }
+            }
+        }
+    }
+
+    /* ================================================================
+       Request builder
+       ================================================================ */
+
+    /** Build the OpenAI-compatible request body from current config. */
+    function buildBody(prompt, model, temp, maxTokens) {
+        return JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: temp,
+            max_tokens: maxTokens,
+            stream: true,
+            stream_options: { include_usage: true },
+        });
+    }
+
+    /** Build fetch headers, including Authorization if a key is set. */
+    function buildHeaders(apiKey) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiKey && apiKey.trim()) {
+            headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+        }
+        return headers;
+    }
+
+    /* ================================================================
+       Dot animation — generic label animator with phase control
+       ================================================================ */
+
+    /**
+     * Create a dot-animator for any label element.
+     * Cycles `baseText` + 0..3 dots at most once per DOT_INTERVAL_MS.
+     * `tick(active)` — advance dots if `active` is true and enough time passed.
+     * `stop()` — reset label to base text (no dots).
+     * @param {Text} label — the text node to animate
+     * @param {string} baseText — e.g. "You", "Assistant", "💭 Thinking"
+     * @param {function():boolean} [skipWhen] — if truthy, pause animation
+     * @returns {{ tick: (active: boolean) => void, stop: () => void }}
+     */
+    function makeLabelAnimator(label, baseText, skipWhen) {
+        let phase = 0;
+        let last = 0;
+
+        return {
+            tick(active) {
+                if (!active) return;
+                if (skipWhen && skipWhen()) return;
+                const now = Date.now();
+                if (now - last < DOT_INTERVAL_MS) return;
+                last = now;
+                label.textContent = `${baseText}${'.'.repeat(phase++ % 4)}`;
+            },
+            stop() { label.textContent = baseText; },
+        };
+    }
+
+    /* ================================================================
+       Main send handler — orchestrates the full request lifecycle
+       ================================================================ */
+
+    /**
+     * Process one SSE chunk: update thinking/response content,
+     * speed badges, dot animation, and scroll.
+     */
+    function makeChunkHandler(state) {
+        return (data) => {
+            // Capture usage from final chunk (overrides our estimate)
+            if (data.usage) {
+                state.promptTokens = data.usage.prompt_tokens || state.promptTokens;
+            }
+
+            const delta = data.choices?.[0]?.delta ?? {};
+            if (!state.firstTokenTime) state.firstTokenTime = Date.now();
+
+            // Thinking / reasoning content
+            const reasoning = delta.reasoning_content || delta.reasoning || '';
+            if (reasoning) {
+                state.hasThinking = true;
+                state.thinkingStart ??= Date.now();
+                state.thinkingEnd = Date.now();
+                state.thinkingTokens++;
+                state.thinkingContent.textContent += reasoning;
+                tickBadge(state.thinkingBadge, state.thinkingTokens, state.thinkingStart);
+                // Phase transition: stop "You" dots, start "Thinking" dots
+                state.animYou.stop();
+                state.animThink.tick(true);
+                scrollToBottom();
+            }
+
+            // Regular content
+            const content = delta.content || '';
+            if (content) {
+                state.responseStart ??= Date.now();
+                state.responseTokens++;
+                state.assistantContent.textContent += content;
+                tickBadge(state.responseBadge, state.responseTokens, state.responseStart);
+                // Phase transition: stop "Thinking" dots, start "Assistant" dots
+                state.animThink.stop();
+                state.animAsst.tick(true);
+                scrollToBottom();
+            }
+        };
+    }
+
+    /** Finalize all badges, labels, and DOM after streaming completes. */
+    function finalizeStreaming(state) {
+        // Stop all dot animations
+        state.animYou.stop();
+        state.animThink.stop();
+        state.animAsst.stop();
+
+        // Prompt badge
+        if (state.firstTokenTime) {
+            const ttft = (state.firstTokenTime - state.requestStart) / 1000;
+            const spd = ttft > 0 && state.promptTokens > 0
+                ? (state.promptTokens / ttft).toFixed(1) : '—';
+            state.promptBadge.textContent =
+                `${state.promptTokens} tok  ${spd} tok/s  ${fmtTime(ttft)} TTFT`;
+        } else {
+            state.promptBadge.textContent = 'no tokens received';
+        }
+
+        // Response badge
+        if (state.responseStart) {
+            tickBadge(state.responseBadge, state.responseTokens, state.responseStart);
+        }
+
+        // Thinking block
+        if (!state.hasThinking) {
+            state.thinkingDetails.remove();
+        } else {
+            state.thinkingDetails.removeEventListener('toggle', state.onToggle);
+            state.thinkingLabel.textContent = state.thinkingDetails.open
+                ? '💭 Thinking (click to collapse)' : '💭 Thinking';
+            if (state.thinkingStart && state.thinkingEnd) {
+                freezeBadge(state.thinkingBadge, state.thinkingTokens,
+                    state.thinkingStart, state.thinkingEnd);
+            }
+        }
+
+        if (!state.assistantContent.textContent) {
+            state.assistantContent.textContent = '(no response content)';
+        }
+    }
+
+    async function sendRequest() {
+        const prompt = els.input.value.trim();
+        if (!prompt || isStreaming) return;
+
+        // Disable UI
+        els.input.disabled = true;
+        els.sendBtn.disabled = true;
+        isStreaming = true;
+
+        // Read config
+        const url     = els.apiUrl.value;
+        const model   = els.modelName.value;
+        const temp    = parseFloat(els.temp.value);
+        const maxTok  = parseInt(els.maxTokens.value, 10);
+
+        // Build DOM
+        const userMsg     = buildUserMsg(prompt);
+        const thinking    = buildThinkingBlock();
+        const assistant   = buildAssistantMsg();
+
+        // Toggle listener for sticky open/close preference
+        const onToggle = () => { thinkingStartOpen = thinking.details.open; };
+        thinking.details.addEventListener('toggle', onToggle);
+
+        // Dot animators — one per phase, chained
+        const animYou  = makeLabelAnimator(userMsg.label, 'You');
+        const animThink = makeLabelAnimator(thinking.label, '💭 Thinking',
+            () => thinking.details.open);  // skip when open
+        const animAsst = makeLabelAnimator(assistant.label, 'Assistant');
+
+        // Shared mutable state for streaming
+        const state = {
+            requestStart:   Date.now(),
+            firstTokenTime: null,
+            promptTokens:   estTokens(prompt),
+            hasThinking:    false,
+            thinkingStart:  null,
+            thinkingEnd:    null,
+            thinkingTokens: 0,
+            responseStart:  null,
+            responseTokens: 0,
+            promptBadge:    userMsg.badge,
+            thinkingDetails: thinking.details,
+            thinkingLabel:   thinking.label,
+            thinkingBadge:   thinking.badge,
+            thinkingContent: thinking.content,
+            assistantContent: assistant.content,
+            responseBadge:   assistant.badge,
+            onToggle,
+            animYou,
+            animThink,
+            animAsst,
+        };
+
+        // Live prompt-processing timer — also drives "You" dot animation
+        const promptTimer = setInterval(() => {
+            if (state.firstTokenTime) { clearInterval(promptTimer); return; }
+            const elapsed = (Date.now() - state.requestStart) / 1000;
+            userMsg.badge.textContent = `~${state.promptTokens} tok  processing...  ${fmtTime(elapsed)}`;
+            animYou.tick(true);
+        }, PROMPT_TICK_MS);
+
+        const onChunk = makeChunkHandler(state);
+
+        try {
+            const apiKey = els.apiKey.value;
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: buildHeaders(apiKey),
+                body: buildBody(prompt, model, temp, maxTok),
+            });
+
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+            await readStream(resp.body.getReader(), new TextDecoder(), onChunk);
+
+            clearInterval(promptTimer);
+            finalizeStreaming(state);
+
+        } catch (err) {
+            clearInterval(promptTimer);
+            if (err.name === 'AbortError') {
+                thinking.content.textContent = 'Cancelled.';
+            } else {
+                thinking.details.remove();
+                assistant.el.remove();
+                buildErrorMsg(`${err.message}\n\nMake sure your server is running and CORS allows requests from this origin.`);
+            }
+        } finally {
+            // Re-enable UI
+            els.input.disabled = false;
+            els.sendBtn.disabled = false;
+            els.input.value = '';
+            els.input.focus();
+            isStreaming = false;
+            scrollToBottom();
+        }
+    }
+
+    /* ================================================================
+       Resize handle — drag top bar to resize textarea
+       ================================================================ */
+    (function initResizeHandle() {
+        const handle = document.getElementById('resizeHandle');
+        let startY, startH;
+
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startY = e.clientY;
+            startH = els.input.offsetHeight;
+            handle.classList.add('active');
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        function onMove(e) {
+            const delta = startY - e.clientY;  // drag up = positive
+            els.input.style.height = Math.max(30, startH + delta) + 'px';
+        }
+
+        function onUp() {
+            handle.classList.remove('active');
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        }
+    })();
+
+    /* ================================================================
+       Initialization
+       ================================================================ */
+    initConfig();
+    initAutoScroll();
+    els.sendBtn.addEventListener('click', sendRequest);
+    els.input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendRequest(); }
+    });
+    </script>
+</body>
+</html>
