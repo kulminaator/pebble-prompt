@@ -2,6 +2,9 @@
 
 A lightweight web-based interface for interacting with OpenAI-compatible LLM inference services (llama.cpp, vLLM, Ollama, LM Studio, etc.).
 
+## Screenshot
+![User interface screenshot](screenshot_2026_05_16.png)
+
 ## Features
 
 - **Streaming responses** — real-time token-by-token output as the model generates
@@ -43,8 +46,12 @@ Any server implementing the [OpenAI Chat Completions API](https://platform.opena
 ## Architecture
 
 Single-page application — no build step, no dependencies. Just one `index.html` file using vanilla HTML/CSS/JavaScript with the Fetch API and Server-Sent Events (SSE) for streaming.
-All the source code is right here in html page, no secret dependencies or 3GB docker files to install.
+All the source code is right here in html page, no secret dependencies or 3GB docker files to install. Light weight, as it should be.
 
 ## CORS Note
 
 If your inference server does not send CORS headers, you may need to enable them on the server side. For vLLM, start with `--api-key` and appropriate CORS flags, or use a reverse proxy.
+
+## Notes
+
+Current version does not send history of previous requests with new requests, so every request is a fresh start. This may change in the future.
