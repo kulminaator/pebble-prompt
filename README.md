@@ -17,7 +17,7 @@ A lightweight web-based interface for interacting with OpenAI-compatible LLM inf
 
 ## Quick Start
 
-1. Place `index.html` on any static web server (or open it directly in a browser) from ...
+1. Place `index.html` on any static web server (or download it and open it directly in a browser) or open it from https://kulminaator.github.io/pebble-prompt/  (see notes in the end of the page).
 2. Open the **⚙️ Configuration** panel and set your API URL (e.g. `http://localhost:8000/v1/chat/completions`)
 3. Enter a prompt and press **Enter** or click **Send**
 
@@ -54,4 +54,5 @@ If your inference server does not send CORS headers, you may need to enable them
 
 ## Notes
 
-Current version does not send history of previous requests with new requests, so every request is a fresh start. This may change in the future.
+- Current version does not send history of previous requests with new requests, so every request is a fresh start. This may change in the future.
+- If you open the tool from a https context but your llm is on a http context then your browser will stop you from interacting with the llm. Best workaround for this is to save the index.html locally and open it locally or serve it from a http host. This overcomes the restriction.
